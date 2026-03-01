@@ -8,12 +8,9 @@
 #ifndef _program_h
 #define _program_h
 
+#include <map>
 #include <string>
-#include <vector>
-#include <set>
-#include <unordered_map>
-#include "statement.hpp"
-
+#include "evalstate.hpp"
 
 class Statement;
 
@@ -140,13 +137,23 @@ public:
 
     int getNextLineNumber(int lineNumber);
 
-    //more func to add
-    //todo
+    void list() const;
+    void run(EvalState &state);
+
+    void setJumpTarget(int lineNumber);
+    void setEndFlag();
 
 private:
+    struct ProgramLine {
+        std::string source;
+        Statement *stmt = nullptr;
+    };
 
-    // Fill this in with whatever types and instance variables you need
-    //todo
+    std::map<int, ProgramLine> lines;
+
+    bool jumpPending = false;
+    int jumpTarget = -1;
+    bool endFlag = false;
 };
 
 #endif

@@ -1,36 +1,29 @@
 /*
  * File: Basic.cpp
  * ---------------
- * This file is the starter project for the BASIC interpreter.
+ * Main loop and command processing for the BASIC interpreter.
  */
 
-#include <cctype>
+#include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <string>
-#include "exp.hpp"
-#include "parser.hpp"
 #include "program.hpp"
+#include "statement.hpp"
 #include "Utils/error.hpp"
 #include "Utils/tokenScanner.hpp"
-#include "Utils/strlib.hpp"
-
-
-/* Function prototypes */
 
 void processLine(std::string line, Program &program, EvalState &state);
-
-/* Main program */
 
 int main() {
     EvalState state;
     Program program;
-    //cout << "Stub implementation of BASIC" << endl;
+
     while (true) {
         try {
             std::string input;
-            getline(std::cin, input);
-            if (input.empty())
-                continue;
+            if (!getline(std::cin, input)) break;
+            if (input.empty()) continue;
             processLine(input, program, state);
         } catch (ErrorException &ex) {
             std::cout << ex.getMessage() << std::endl;
@@ -39,24 +32,66 @@ int main() {
     return 0;
 }
 
-/*
- * Function: processLine
- * Usage: processLine(line, program, state);
- * -----------------------------------------
- * Processes a single line entered by the user.  In this version of
- * implementation, the program reads a line, parses it as an expression,
- * and then prints the result.  In your implementation, you will
- * need to replace this method with one that can respond correctly
- * when the user enters a program line (which begins with a number)
- * or one of the BASIC commands, such as LIST or RUN.
- */
-
 void processLine(std::string line, Program &program, EvalState &state) {
     TokenScanner scanner;
     scanner.ignoreWhitespace();
     scanner.scanNumbers();
     scanner.setInput(line);
 
-    //todo
-}
+    if (!scanner.hasMoreTokens()) return;
 
+    std::string firstToken = scanner.nextToken();
+
+    if (scanner.getTokenType(firstToken) == NUMBER) {
+        int lineNumber;
+        try {
+            lineNumber = std::stoi(firstToken);
+        } catch (...) {
+            error("SYNTAX ERROR");
+        }
+
+        if (!scanner.hasMoreTokens()) {
+            program.removeSourceLine(lineNumber);
+            return;
+        }
+
+        std::unique_ptr<Statement> stmt(parseStatement(scanner, true));
+        program.addSourceLine(lineNumber, line);
+        program.setParsedStatement(lineNumber, stmt.release());
+        return;
+    }
+
+    if (firstToken == "RUN") {
+        if (scanner.hasMoreTokens()) error("SYNTAX ERROR");
+        program.run(state);
+        return;
+    }
+
+    if (firstToken == "LIST") {
+        if (scanner.hasMoreTokens()) error("SYNTAX ERROR");
+        program.list();
+        return;
+    }
+
+    if (firstToken == "CLEAR") {
+        if (scanner.hasMoreTokens()) error("SYNTAX ERROR");
+        program.clear();
+        state.Clear();
+        return;
+    }
+
+    if (firstToken == "QUIT") {
+        if (scanner.hasMoreTokens()) error("SYNTAX ERROR");
+        std::exit(0);
+    }
+
+    if (firstToken == "HELP") {
+        if (scanner.hasMoreTokens()) error("SYNTAX ERROR");
+        std::cout << "Commands: LET PRINT INPUT RUN LIST CLEAR QUIT" << std::endl;
+        return;
+    }
+
+    scanner.saveToken(firstToken);
+    std::unique_ptr<Statement> stmt(parseStatement(scanner, false));
+    stmt->execute(state, program);
+}
